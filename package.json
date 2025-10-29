@@ -1,0 +1,32 @@
+{
+  "name": "rsshub-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for RSSHub - provides RSS feed access through Model Context Protocol",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "rsshub-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "rsshub",
+    "rss",
+    "feed",
+    "model-context-protocol"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.6.0",
+    "axios": "^1.7.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0"
+  }
+}
