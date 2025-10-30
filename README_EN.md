@@ -7,6 +7,11 @@ A Model Context Protocol (MCP) server for [RSSHub](https://docs.rsshub.app/), en
 ## Features
 
 - 🔍 **RSS Feed Fetching**: Get RSS feeds from various websites via routes
+- ⭐ **Subscription Management** (New):
+  - Add/remove feed subscriptions
+  - Fetch all subscriptions with one click
+  - Local persistent storage for subscription list
+  - Set default parameters and custom names for each subscription
 - 🔎 **Smart Route Search**: Automatically fetch all available routes from RSSHub API with fuzzy search support
 - 💾 **Route Caching**: Automatically cache route data (24 hours) for faster response
 - ⚙️ **Flexible Instance Configuration**:
@@ -118,24 +123,112 @@ Configure custom instance via `RSSHUB_INSTANCE` environment variable for better 
 
 Restart Claude Desktop after configuration to use.
 
+### Custom Data Storage Location
+
+Subscription data is saved by default to `~/.rsshub-mcp/subscriptions.json`. To customize the location, set the environment variable:
+
+```json
+{
+  "mcpServers": {
+    "rsshub": {
+      "command": "npx",
+      "args": ["rsshub-mcp"],
+      "env": {
+        "RSSHUB_INSTANCE": "http://localhost:1200",
+        "RSSHUB_MCP_DATA_DIR": "/custom/path/to/data"
+      }
+    }
+  }
+}
+```
+
 ## Available Tools
 
 ### 1. get_feed
 
-Get RSSHub feed content.
+Get RSSHub feed content. Supports two modes:
+
+**Mode 1: Get All Subscriptions (No Parameters)**
+- Call without any parameters to automatically fetch all subscribed feeds
+- Returns aggregated subscription list with their data
+
+**Mode 2: Get Specific Route (With route Parameter)**
+- Fetch RSS feed for a specific route
 
 **Parameters:**
-- `route` (required): RSSHub route path, e.g., `/bilibili/bangumi/media/9192`
+- `route` (optional): RSSHub route path, e.g., `/bilibili/bangumi/media/9192`. Omit to fetch all subscriptions
 - `params` (optional): Universal parameters object, e.g., `{ "limit": "10", "filter": "keyword" }`
 
 **Examples:**
 ```
+# Get all subscription updates
+Get all my subscription updates
+
+# Get specific route
 Get Telegram channel awesomeRSSHub feed content
 Get Bilibili anime 9192 updates
 Subscribe to GitHub repository anthropics/anthropic-sdk-python releases
 ```
 
-### 2. search_routes
+### 2. subscribe
+
+Add an RSS feed to your subscription list.
+
+**Parameters:**
+- `route` (required): RSSHub route path to subscribe to
+- `name` (optional): Custom friendly name for this subscription
+- `params` (optional): Default parameters for this subscription, automatically applied on fetch
+
+**Features:**
+- Automatic duplicate subscription detection
+- Support friendly names for subscriptions
+- Preset default parameters (like filter rules, item limits)
+- Data persisted locally
+
+**Examples:**
+```
+Subscribe to Bilibili anime /bilibili/bangumi/media/9192, name it "My Anime"
+Add GitHub repository /github/issue/vuejs/core to subscription list
+Subscribe to /telegram/channel/awesomeRSSHub with limit 10
+```
+
+### 3. unsubscribe
+
+Remove an RSS feed from your subscription list.
+
+**Parameters:**
+- `id` (optional): Unique subscription ID
+- `route` (optional): Route path to unsubscribe from
+
+**Note:** At least one of `id` or `route` must be provided
+
+**Examples:**
+```
+Unsubscribe from /bilibili/bangumi/media/9192
+Remove subscription with ID sub_xxx
+```
+
+### 4. list_subscriptions
+
+List all saved subscriptions.
+
+**Parameters:** None
+
+**Returned Information:**
+- Subscription ID
+- Route path
+- Custom name
+- Default parameters
+- Creation time
+- Full URL
+
+**Examples:**
+```
+Show all my subscriptions
+List subscription list
+```
+
+### 5. search_routes
 
 Search RSSHub routes. Automatically fetch latest routes from RSSHub API with fuzzy search support.
 
@@ -162,12 +255,19 @@ Find routes under social-media category
 
 After configuration, you can directly ask in Claude Desktop:
 
-1. **Get feed content:**
+1. **Manage subscriptions:**
+   - "Subscribe to Bilibili anime /bilibili/bangumi/media/9192, name it 'My Anime'"
+   - "Add GitHub repository vuejs/core issues to subscription list"
+   - "Show all my subscriptions"
+   - "Unsubscribe from /telegram/channel/awesomeRSSHub"
+
+2. **Get feed content:**
+   - "Get all my subscription updates" (fetch all subscriptions with one click)
    - "Get the latest content from Telegram channel awesomeRSSHub"
-   - "Subscribe to Bilibili UP主 2267573's updates"
+   - "Check latest episode of Bilibili anime 9192"
    - "Check latest issues from GitHub repository vuejs/core"
 
-2. **Search routes:**
+3. **Search routes:**
    - "Search for bilibili related routes"
    - "Find github subscription methods"
    - "What telegram routes are available?"

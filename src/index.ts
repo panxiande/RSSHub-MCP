@@ -7,6 +7,9 @@ import {
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import axios from "axios";
+import fs from "fs/promises";
+import path from "path";
+import os from "os";
 
 // RSSHub instance configuration (supports environment variable)
 const DEFAULT_RSSHUB_INSTANCE =
@@ -46,6 +49,44 @@ interface NamespaceResponse {
 let routesCache: RouteInfo[] | null = null;
 let cacheTimestamp: number | null = null;
 const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours cache
+
+// Subscription management
+interface Subscription {
+  id: string;
+  route: string;
+  name?: string;
+  params?: Record<string, string>;
+  createdAt: string;
+}
+
+// Subscription data directory
+const DATA_DIR = process.env.RSSHUB_MCP_DATA_DIR ||
+  path.join(os.homedir(), ".rsshub-mcp");
+const SUBSCRIPTIONS_FILE = path.join(DATA_DIR, "subscriptions.json");
+
+// Load subscriptions from file
+async function loadSubscriptions(): Promise<Subscription[]> {
+  try {
+    await fs.mkdir(DATA_DIR, { recursive: true });
+    const data = await fs.readFile(SUBSCRIPTIONS_FILE, "utf-8");
+    return JSON.parse(data);
+  } catch (error: any) {
+    if (error.code === "ENOENT") {
+      return [];
+    }
+    throw error;
+  }
+}
+
+// Save subscriptions to file
+async function saveSubscriptions(subscriptions: Subscription[]): Promise<void> {
+  await fs.mkdir(DATA_DIR, { recursive: true });
+  await fs.writeFile(
+    SUBSCRIPTIONS_FILE,
+    JSON.stringify(subscriptions, null, 2),
+    "utf-8"
+  );
+}
 
 // Fetch all routes
 async function fetchAllRoutes(): Promise<RouteInfo[]> {
@@ -141,14 +182,14 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       {
         name: "get_feed",
         description:
-          "Get RSSHub feed content. Fetch RSS feeds from various websites like Bilibili, Twitter, GitHub, etc. via HTTP requests. Use RSSHUB_INSTANCE environment variable to configure custom instance.",
+          "Get RSSHub feed content. If route is provided, fetch specific feed. If no route is provided, fetch all subscribed feeds. Use RSSHUB_INSTANCE environment variable to configure custom instance.",
         inputSchema: {
           type: "object",
           properties: {
             route: {
               type: "string",
               description:
-                "RSSHub route path, e.g., '/bilibili/bangumi/media/9192' or '/telegram/channel/awesomeRSSHub'. Refer to RSSHub documentation for route format.",
+                "Optional RSSHub route path, e.g., '/bilibili/bangumi/media/9192'. If omitted, returns all subscribed feeds.",
             },
             params: {
               type: "object",
@@ -157,7 +198,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               additionalProperties: true,
             },
           },
-          required: ["route"],
+          required: [],
         },
       },
       {
@@ -176,6 +217,62 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["query"],
         },
       },
+      {
+        name: "subscribe",
+        description:
+          "Subscribe to an RSSHub feed. Add a route to your subscription list for easy access later.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            route: {
+              type: "string",
+              description:
+                "RSSHub route path to subscribe to, e.g., '/bilibili/bangumi/media/9192'",
+            },
+            name: {
+              type: "string",
+              description:
+                "Optional friendly name for this subscription, e.g., 'Bilibili Anime'",
+            },
+            params: {
+              type: "object",
+              description:
+                "Optional default parameters for this subscription",
+              additionalProperties: true,
+            },
+          },
+          required: ["route"],
+        },
+      },
+      {
+        name: "unsubscribe",
+        description:
+          "Unsubscribe from an RSSHub feed. Remove a subscription by ID or route.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            id: {
+              type: "string",
+              description: "Subscription ID to remove",
+            },
+            route: {
+              type: "string",
+              description: "Or route path to unsubscribe from",
+            },
+          },
+          required: [],
+        },
+      },
+      {
+        name: "list_subscriptions",
+        description:
+          "List all RSS feed subscriptions. Shows all subscribed routes with their details.",
+        inputSchema: {
+          type: "object",
+          properties: {},
+          required: [],
+        },
+      },
     ],
   };
 });
@@ -186,13 +283,94 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   try {
     if (name === "get_feed") {
-      if (!args) {
-        throw new Error("Missing required parameters");
-      }
-      const route = args.route as string;
-      const params = (args.params as Record<string, string>) || {};
+      const route = args?.route as string | undefined;
+      const params = (args?.params as Record<string, string>) || {};
 
-      // Ensure route starts with /
+      // If no route provided, fetch all subscriptions
+      if (!route) {
+        const subscriptions = await loadSubscriptions();
+
+        if (subscriptions.length === 0) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify({
+                  message: "No subscriptions found",
+                  suggestion: "Use the 'subscribe' tool to add feeds to your subscription list",
+                  subscriptionCount: 0,
+                }, null, 2),
+              },
+            ],
+          };
+        }
+
+        // Fetch all subscription feeds
+        const results = [];
+        for (const sub of subscriptions) {
+          try {
+            const normalizedRoute = sub.route.startsWith("/")
+              ? sub.route
+              : `/${sub.route}`;
+
+            const baseUrl = DEFAULT_RSSHUB_INSTANCE.endsWith("/")
+              ? DEFAULT_RSSHUB_INSTANCE.slice(0, -1)
+              : DEFAULT_RSSHUB_INSTANCE;
+            const url = new URL(`${baseUrl}${normalizedRoute}`);
+
+            // Add subscription params and override with call params
+            const allParams = { ...sub.params, ...params };
+            Object.entries(allParams).forEach(([key, value]) => {
+              url.searchParams.append(key, String(value));
+            });
+
+            console.error(`[RSSHub MCP] Fetching subscription: ${sub.name || sub.route}`);
+            const response = await axios.get(url.toString(), {
+              headers: { "User-Agent": "RSSHub-MCP/1.0" },
+              timeout: 60000,
+              maxContentLength: 50 * 1024 * 1024,
+              validateStatus: (status) => status < 600,
+            });
+
+            results.push({
+              subscription: {
+                id: sub.id,
+                name: sub.name,
+                route: sub.route,
+              },
+              url: url.toString(),
+              status: response.status,
+              success: response.status < 400,
+              data: response.status < 400 ? response.data : null,
+              error: response.status >= 400 ? response.statusText : null,
+            });
+          } catch (error) {
+            results.push({
+              subscription: {
+                id: sub.id,
+                name: sub.name,
+                route: sub.route,
+              },
+              success: false,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                message: `Fetched ${results.length} subscription(s)`,
+                subscriptions: results,
+              }, null, 2),
+            },
+          ],
+        };
+      }
+
+      // Single route fetch (original behavior)
       const normalizedRoute = route.startsWith("/") ? route : `/${route}`;
 
       // Build complete URL
@@ -372,6 +550,162 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
 
       output += `📚 For more information, visit [RSSHub Documentation](https://docs.rsshub.app/)\n`;
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: output,
+          },
+        ],
+      };
+    } else if (name === "subscribe") {
+      if (!args || !args.route) {
+        throw new Error("Missing required parameter: route");
+      }
+
+      const route = args.route as string;
+      const name_param = args.name as string | undefined;
+      const params = (args.params as Record<string, string>) || undefined;
+
+      const subscriptions = await loadSubscriptions();
+
+      // Check if already subscribed
+      const existing = subscriptions.find((s) => s.route === route);
+      if (existing) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                message: "Already subscribed to this route",
+                subscription: existing,
+              }, null, 2),
+            },
+          ],
+        };
+      }
+
+      // Create new subscription
+      const newSubscription: Subscription = {
+        id: `sub_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`,
+        route: route,
+        name: name_param,
+        params: params,
+        createdAt: new Date().toISOString(),
+      };
+
+      subscriptions.push(newSubscription);
+      await saveSubscriptions(subscriptions);
+
+      console.error(`[RSSHub MCP] Added subscription: ${route}`);
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              message: "Successfully subscribed",
+              subscription: newSubscription,
+              totalSubscriptions: subscriptions.length,
+            }, null, 2),
+          },
+        ],
+      };
+    } else if (name === "unsubscribe") {
+      const id = args?.id as string | undefined;
+      const route = args?.route as string | undefined;
+
+      if (!id && !route) {
+        throw new Error("Must provide either 'id' or 'route' parameter");
+      }
+
+      const subscriptions = await loadSubscriptions();
+      const initialLength = subscriptions.length;
+
+      // Filter out the subscription
+      const filtered = subscriptions.filter((s) => {
+        if (id) {
+          return s.id !== id;
+        }
+        if (route) {
+          return s.route !== route;
+        }
+        return true;
+      });
+
+      if (filtered.length === initialLength) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                message: "Subscription not found",
+                searched: id ? { id } : { route },
+              }, null, 2),
+            },
+          ],
+        };
+      }
+
+      await saveSubscriptions(filtered);
+
+      const removed = initialLength - filtered.length;
+      console.error(`[RSSHub MCP] Removed ${removed} subscription(s)`);
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify({
+              message: `Successfully unsubscribed`,
+              removedCount: removed,
+              remainingSubscriptions: filtered.length,
+            }, null, 2),
+          },
+        ],
+      };
+    } else if (name === "list_subscriptions") {
+      const subscriptions = await loadSubscriptions();
+
+      if (subscriptions.length === 0) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({
+                message: "No subscriptions found",
+                suggestion: "Use the 'subscribe' tool to add feeds to your subscription list",
+                subscriptionCount: 0,
+              }, null, 2),
+            },
+          ],
+        };
+      }
+
+      let output = `# RSS Feed Subscriptions\n\n`;
+      output += `Total subscriptions: ${subscriptions.length}\n\n`;
+
+      for (const sub of subscriptions) {
+        output += `## ${sub.name || sub.route}\n\n`;
+        output += `- **ID**: \`${sub.id}\`\n`;
+        output += `- **Route**: \`${sub.route}\`\n`;
+        output += `- **Full URL**: \`${DEFAULT_RSSHUB_INSTANCE}${sub.route}\`\n`;
+        if (sub.name) {
+          output += `- **Name**: ${sub.name}\n`;
+        }
+        if (sub.params && Object.keys(sub.params).length > 0) {
+          output += `- **Default Parameters**:\n`;
+          for (const [key, value] of Object.entries(sub.params)) {
+            output += `  - \`${key}\`: ${value}\n`;
+          }
+        }
+        output += `- **Created**: ${new Date(sub.createdAt).toLocaleString()}\n`;
+        output += `\n`;
+      }
+
+      output += `\n---\n\n`;
+      output += `💡 **Tip**: Use \`get_feed()\` without parameters to fetch all subscribed feeds\n`;
 
       return {
         content: [

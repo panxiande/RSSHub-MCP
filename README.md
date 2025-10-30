@@ -7,6 +7,11 @@
 ## 功能特性
 
 - 🔍 **RSS 订阅获取**：通过路由获取各种网站的 RSS feed
+- ⭐ **订阅管理**（新功能）：
+  - 添加/删除订阅源
+  - 一键获取所有订阅内容
+  - 本地持久化存储订阅列表
+  - 为每个订阅设置默认参数和自定义名称
 - 🔎 **智能路由搜索**：从 RSSHub API 自动获取所有可用路由并支持模糊搜索
 - 💾 **路由缓存**：自动缓存路由数据（24小时），提升响应速度
 - ⚙️ **灵活实例配置**：
@@ -119,24 +124,112 @@ npm run build
 
 配置完成后，重启 Claude Desktop 即可使用。
 
+### 自定义数据存储位置
+
+订阅数据默认保存在 `~/.rsshub-mcp/subscriptions.json`。如需自定义位置，可设置环境变量：
+
+```json
+{
+  "mcpServers": {
+    "rsshub": {
+      "command": "npx",
+      "args": ["rsshub-mcp"],
+      "env": {
+        "RSSHUB_INSTANCE": "http://localhost:1200",
+        "RSSHUB_MCP_DATA_DIR": "/custom/path/to/data"
+      }
+    }
+  }
+}
+```
+
 ## 可用工具
 
 ### 1. get_feed
 
-获取 RSSHub 订阅源内容。
+获取 RSSHub 订阅源内容。支持两种模式：
+
+**模式 1：获取所有订阅（无参数）**
+- 不传任何参数，自动获取所有已订阅源的内容
+- 返回聚合的订阅列表及其数据
+
+**模式 2：获取特定路由（传入 route 参数）**
+- 获取指定路由的 RSS feed
 
 **参数：**
-- `route` (必需): RSSHub 路由路径，例如 `/bilibili/bangumi/media/9192`
+- `route` (可选): RSSHub 路由路径，例如 `/bilibili/bangumi/media/9192`。不提供时获取所有订阅
 - `params` (可选): 通用参数对象，如 `{ "limit": "10", "filter": "关键词" }`
 
 **示例：**
 ```
+# 获取所有订阅的内容
+获取我的所有订阅更新
+
+# 获取特定路由
 获取 Telegram 频道 awesomeRSSHub 的订阅内容
 获取 B站番剧 9192 的更新
 订阅 GitHub 仓库 anthropics/anthropic-sdk-python 的 releases
 ```
 
-### 2. search_routes
+### 2. subscribe
+
+将 RSS 源添加到订阅列表。
+
+**参数：**
+- `route` (必需): 要订阅的 RSSHub 路由路径
+- `name` (可选): 订阅的自定义名称，便于识别
+- `params` (可选): 该订阅的默认参数，每次获取时自动应用
+
+**特性：**
+- 自动检测重复订阅
+- 支持为订阅设置友好名称
+- 可预设默认参数（如过滤规则、条目限制）
+- 数据持久化保存在本地
+
+**示例：**
+```
+订阅 B站番剧 /bilibili/bangumi/media/9192，命名为"我的追番"
+添加 GitHub 仓库 /github/issue/vuejs/core 到订阅列表
+订阅 /telegram/channel/awesomeRSSHub，限制10条
+```
+
+### 3. unsubscribe
+
+从订阅列表中删除 RSS 源。
+
+**参数：**
+- `id` (可选): 订阅的唯一 ID
+- `route` (可选): 要取消订阅的路由路径
+
+**说明：** `id` 和 `route` 至少提供一个
+
+**示例：**
+```
+取消订阅 /bilibili/bangumi/media/9192
+删除订阅 ID 为 sub_xxx 的订阅
+```
+
+### 4. list_subscriptions
+
+列出所有已保存的订阅。
+
+**参数：** 无
+
+**返回信息：**
+- 订阅 ID
+- 路由路径
+- 自定义名称
+- 默认参数
+- 创建时间
+- 完整 URL
+
+**示例：**
+```
+显示我的所有订阅
+列出订阅列表
+```
+
+### 5. search_routes
 
 搜索 RSSHub 路由。自动从 RSSHub API 获取最新路由并支持模糊搜索。
 
@@ -163,12 +256,19 @@ npm run build
 
 配置完成后，你可以在 Claude Desktop 中直接询问：
 
-1. **获取订阅内容：**
+1. **管理订阅：**
+   - "订阅 B站番剧 /bilibili/bangumi/media/9192，命名为'我的追番'"
+   - "添加 GitHub 仓库 vuejs/core 的 issues 到订阅列表"
+   - "显示我的所有订阅"
+   - "取消订阅 /telegram/channel/awesomeRSSHub"
+
+2. **获取订阅内容：**
+   - "获取我的所有订阅更新" （一键获取所有订阅）
    - "帮我获取 Telegram 频道 awesomeRSSHub 的最新内容"
-   - "订阅 B站 UP主 2267573 的动态"
+   - "查看 B站番剧 9192 的最新一集"
    - "查看 GitHub 仓库 vuejs/core 的最新 issues"
 
-2. **搜索路由：**
+3. **搜索路由：**
    - "搜索 bilibili 相关的路由"
    - "查找 github 的订阅方式"
    - "有哪些 telegram 相关的路由？"
