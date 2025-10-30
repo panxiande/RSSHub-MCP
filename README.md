@@ -1,5 +1,7 @@
 # RSSHub MCP Server
 
+中文文档 | [English](./README_EN.md)
+
 一个用于 [RSSHub](https://docs.rsshub.app/) 的 Model Context Protocol (MCP) 服务器，让 AI 助手能够通过 MCP 协议访问和查询各种 RSS 订阅源。
 
 ## 功能特性
@@ -20,8 +22,46 @@
 
 ## 安装
 
+### 方式 1：通过 npx（推荐）
+
+无需手动安装，直接在 Claude Desktop 配置中使用 npx 即可：
+
+编辑配置文件：
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "rsshub": {
+      "command": "npx",
+      "args": ["rsshub-mcp"]
+    }
+  }
+}
+```
+
+如需使用自定义 RSSHub 实例：
+
+```json
+{
+  "mcpServers": {
+    "rsshub": {
+      "command": "npx",
+      "args": ["rsshub-mcp"],
+      "env": {
+        "RSSHUB_INSTANCE": "http://localhost:1200"
+      }
+    }
+  }
+}
+```
+
+### 方式 2：从源码构建
+
 ```bash
 # 克隆仓库
+git clone https://github.com/panxiande/RSSHub-MCP.git
 cd RSSHub-MCP
 
 # 安装依赖
@@ -31,22 +71,16 @@ npm install
 npm run build
 ```
 
-## 配置 Claude Desktop
-
-在 Claude Desktop 配置文件中添加此 MCP 服务器：
-
-### 方式 1：使用默认公共实例（快速开始）
+然后在 Claude Desktop 配置文件中添加：
 
 #### macOS
-
-编辑 `~/Library/Application Support/Claude/claude_desktop_config.json`:
 
 ```json
 {
   "mcpServers": {
     "rsshub": {
       "command": "node",
-      "args": ["/Users/bytedance/Project/RSSHub-MCP/dist/index.js"]
+      "args": ["/path/to/RSSHub-MCP/dist/index.js"]
     }
   }
 }
@@ -54,47 +88,27 @@ npm run build
 
 #### Windows
 
-编辑 `%APPDATA%\Claude\claude_desktop_config.json`:
-
 ```json
 {
   "mcpServers": {
     "rsshub": {
       "command": "node",
-      "args": ["C:\\Users\\YourUsername\\Project\\RSSHub-MCP\\dist\\index.js"]
+      "args": ["C:\\path\\to\\RSSHub-MCP\\dist\\index.js"]
     }
   }
 }
 ```
 
-### 方式 2：使用自定义 RSSHub 实例（推荐）
+### 使用自定义实例（推荐）
 
 通过环境变量 `RSSHUB_INSTANCE` 指定自定义实例，获得更好的稳定性：
 
-#### macOS
-
 ```json
 {
   "mcpServers": {
     "rsshub": {
-      "command": "node",
-      "args": ["/Users/bytedance/Project/RSSHub-MCP/dist/index.js"],
-      "env": {
-        "RSSHUB_INSTANCE": "http://localhost:1200"
-      }
-    }
-  }
-}
-```
-
-#### Windows
-
-```json
-{
-  "mcpServers": {
-    "rsshub": {
-      "command": "node",
-      "args": ["C:\\Users\\YourUsername\\Project\\RSSHub-MCP\\dist\\index.js"],
+      "command": "npx",
+      "args": ["rsshub-mcp"],
       "env": {
         "RSSHUB_INSTANCE": "http://localhost:1200"
       }
@@ -107,13 +121,12 @@ npm run build
 
 ## 可用工具
 
-### 1. get_rsshub_feed
+### 1. get_feed
 
 获取 RSSHub 订阅源内容。
 
 **参数：**
 - `route` (必需): RSSHub 路由路径，例如 `/bilibili/bangumi/media/9192`
-- `instance` (可选): RSSHub 实例 URL，默认为 `https://rsshub.app`
 - `params` (可选): 通用参数对象，如 `{ "limit": "10", "filter": "关键词" }`
 
 **示例：**
@@ -123,7 +136,7 @@ npm run build
 订阅 GitHub 仓库 anthropics/anthropic-sdk-python 的 releases
 ```
 
-### 2. search_rsshub_routes
+### 2. search_routes
 
 搜索 RSSHub 路由。自动从 RSSHub API 获取最新路由并支持模糊搜索。
 
@@ -217,7 +230,7 @@ RSSHub 支持以下通用参数：
 
 **解决方案：**
 - 稍后重试
-- 确认路由是否正确（使用 `search_rsshub_routes` 工具）
+- 确认路由是否正确（使用 `search_routes` 工具）
 - 考虑使用自部署的 RSSHub 实例
 
 #### 3. 404 Not Found 错误
@@ -226,7 +239,7 @@ RSSHub 支持以下通用参数：
 - 路由不存在或路径错误
 
 **解决方案：**
-- 使用 `search_rsshub_routes` 工具搜索正确的路由
+- 使用 `search_routes` 工具搜索正确的路由
 - 查看 [RSSHub 官方文档](https://docs.rsshub.app/)
 
 ### 调试日志
@@ -260,7 +273,7 @@ MCP 服务器会输出详细的日志到标准错误输出（stderr），包括�
    - 快速开始，但可能负载较高
    - 出现 502/503 错误时建议切换实例
 
-**使用自定义实例的方式：**
+**配置方式：**
 - 在 Claude Desktop 配置中设置 `RSSHUB_INSTANCE` 环境变量
 
 ## 支持的平台

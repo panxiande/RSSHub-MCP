@@ -8,15 +8,15 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import axios from "axios";
 
-// RSSHub 实例配置（支持环境变量）
+// RSSHub instance configuration (supports environment variable)
 const DEFAULT_RSSHUB_INSTANCE =
   process.env.RSSHUB_INSTANCE || "https://rsshub.app";
 
 console.error(
-  `[RSSHub MCP] 使用 RSSHub 实例: ${DEFAULT_RSSHUB_INSTANCE}`
+  `[RSSHub MCP] Using RSSHub instance: ${DEFAULT_RSSHUB_INSTANCE}`
 );
 
-// 路由缓存
+// Route cache
 interface RouteInfo {
   path: string;
   name: string;
@@ -45,11 +45,11 @@ interface NamespaceResponse {
 
 let routesCache: RouteInfo[] | null = null;
 let cacheTimestamp: number | null = null;
-const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24小时缓存
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours cache
 
-// 获取所有路由
+// Fetch all routes
 async function fetchAllRoutes(): Promise<RouteInfo[]> {
-  // 检查缓存
+  // Check cache
   if (
     routesCache &&
     cacheTimestamp &&
@@ -68,7 +68,7 @@ async function fetchAllRoutes(): Promise<RouteInfo[]> {
 
     const allRoutes: RouteInfo[] = [];
 
-    // 解析所有命名空间和路由
+    // Parse all namespaces and routes
     for (const [namespace, data] of Object.entries(response.data)) {
       for (const [routePath, routeData] of Object.entries(data.routes)) {
         allRoutes.push({
@@ -86,28 +86,28 @@ async function fetchAllRoutes(): Promise<RouteInfo[]> {
       }
     }
 
-    // 更新缓存
+    // Update cache
     routesCache = allRoutes;
     cacheTimestamp = Date.now();
 
     return allRoutes;
   } catch (error) {
-    // 如果获取失败但有旧缓存，使用旧缓存
+    // If fetch fails but has old cache, use old cache
     if (routesCache) {
-      console.error("获取路由失败，使用缓存数据", error);
+      console.error("Failed to fetch routes, using cached data", error);
       return routesCache;
     }
     throw error;
   }
 }
 
-// 模糊搜索路由
+// Fuzzy search routes
 function searchRoutes(routes: RouteInfo[], query: string): RouteInfo[] {
   const lowerQuery = query.toLowerCase();
 
   return routes
     .filter((route) => {
-      // 搜索命名空间、名称、路径、描述、URL
+      // Search namespace, name, path, description, URL
       return (
         route.namespace.toLowerCase().includes(lowerQuery) ||
         route.namespaceName.toLowerCase().includes(lowerQuery) ||
@@ -118,10 +118,10 @@ function searchRoutes(routes: RouteInfo[], query: string): RouteInfo[] {
         route.categories.some((cat) => cat.toLowerCase().includes(lowerQuery))
       );
     })
-    .slice(0, 50); // 限制返回结果数量
+    .slice(0, 50); // Limit results count
 }
 
-// 创建服务器实例
+// Create server instance
 const server = new Server(
   {
     name: "rsshub-mcp",
@@ -134,26 +134,26 @@ const server = new Server(
   }
 );
 
-// 列出可用工具
+// List available tools
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
       {
-        name: "get_rsshub_feed",
+        name: "get_feed",
         description:
-          "获取 RSSHub 订阅源内容。通过 HTTP 请求获取各种网站的 RSS feed，如 Bilibili、Twitter、GitHub 等。使用环境变量 RSSHUB_INSTANCE 配置自定义实例。",
+          "Get RSSHub feed content. Fetch RSS feeds from various websites like Bilibili, Twitter, GitHub, etc. via HTTP requests. Use RSSHUB_INSTANCE environment variable to configure custom instance.",
         inputSchema: {
           type: "object",
           properties: {
             route: {
               type: "string",
               description:
-                "RSSHub 路由路径，例如 '/bilibili/bangumi/media/9192' 或 '/telegram/channel/awesomeRSSHub'。路由格式参考 RSSHub 文档。",
+                "RSSHub route path, e.g., '/bilibili/bangumi/media/9192' or '/telegram/channel/awesomeRSSHub'. Refer to RSSHub documentation for route format.",
             },
             params: {
               type: "object",
               description:
-                "可选的通用参数，如 limit(条目数量)、filter(过滤规则)、filterout(排除规则) 等。",
+                "Optional general parameters, such as limit (number of items), filter (filtering rules), filterout (exclusion rules), etc.",
               additionalProperties: true,
             },
           },
@@ -161,16 +161,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
-        name: "search_rsshub_routes",
+        name: "search_routes",
         description:
-          "搜索 RSSHub 路由。支持按关键词模糊搜索，可以搜索平台名称、路由名称、分类等。会自动从 RSSHub API 获取最新路由并缓存。",
+          "Search RSSHub routes. Support fuzzy search by keywords, can search platform names, route names, categories, etc. Automatically fetches latest routes from RSSHub API and caches them.",
         inputSchema: {
           type: "object",
           properties: {
             query: {
               type: "string",
               description:
-                "搜索关键词，支持平台名称（如 'bilibili'、'github'）、分类（如 'social-media'）、路由名称等",
+                "Search keyword, supports platform names (e.g., 'bilibili', 'github'), categories (e.g., 'social-media'), route names, etc.",
             },
           },
           required: ["query"],
@@ -180,81 +180,82 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   };
 });
 
-// 处理工具调用
+// Handle tool calls
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
 
   try {
-    if (name === "get_rsshub_feed") {
+    if (name === "get_feed") {
       if (!args) {
-        throw new Error("缺少必需的参数");
+        throw new Error("Missing required parameters");
       }
       const route = args.route as string;
       const params = (args.params as Record<string, string>) || {};
 
-      // 确保路由以 / 开头
+      // Ensure route starts with /
       const normalizedRoute = route.startsWith("/") ? route : `/${route}`;
 
-      // 构建完整 URL
+      // Build complete URL
       const baseUrl = DEFAULT_RSSHUB_INSTANCE.endsWith("/")
         ? DEFAULT_RSSHUB_INSTANCE.slice(0, -1)
         : DEFAULT_RSSHUB_INSTANCE;
       const url = new URL(`${baseUrl}${normalizedRoute}`);
 
-      // 添加查询参数
+      // Add query parameters
       Object.entries(params).forEach(([key, value]) => {
         url.searchParams.append(key, value);
       });
 
-      console.error(`[RSSHub MCP] 正在请求: ${url.toString()}`);
+      console.error(`[RSSHub MCP] Requesting: ${url.toString()}`);
       const startTime = Date.now();
 
-      // 获取 RSS feed - 60 秒超时
+      // Fetch RSS feed - 60 seconds timeout
       const response = await axios.get(url.toString(), {
         headers: {
           "User-Agent": "RSSHub-MCP/1.0",
         },
-        timeout: 60000, // 60 秒超时
-        maxContentLength: 50 * 1024 * 1024, // 50MB 最大响应大小
-        validateStatus: (status) => status < 600, // 接受所有 < 600 的状态码
+        timeout: 60000, // 60 seconds timeout
+        maxContentLength: 50 * 1024 * 1024, // 50MB max response size
+        validateStatus: (status) => status < 600, // Accept all status codes < 600
       });
 
       const duration = Date.now() - startTime;
       console.error(
-        `[RSSHub MCP] 请求完成: ${response.status} (${duration}ms)`
+        `[RSSHub MCP] Request completed: ${response.status} (${duration}ms)`
       );
 
-      // 如果是错误状态码，提供更详细的错误信息
+      // If error status code, provide more detailed error information
       if (response.status >= 400) {
         const errorInfo: any = {
           url: url.toString(),
           status: response.status,
           statusText: response.statusText,
-          error: "RSSHub 服务器返回错误",
+          error: "RSSHub server returned error",
         };
 
-        // 根据不同的错误状态码提供不同的建议
+        // Provide different suggestions based on status code
         if (response.status === 404) {
           errorInfo.message =
-            "路由不存在。请使用 search_rsshub_routes 工具搜索正确的路由。";
-          errorInfo.suggestion = `尝试搜索相关路由，例如: search_rsshub_routes(query="${route.split("/")[1]}")`;
+            "Route not found. Please use the search_routes tool to search for the correct route.";
+          errorInfo.suggestion = `Try searching for related routes, e.g.: search_routes(query="${route.split("/")[1]}")`;
         } else if (response.status === 502 || response.status === 503) {
           errorInfo.message =
-            "RSSHub 服务器暂时不可用或上游服务出现问题。";
+            "RSSHub server is temporarily unavailable or upstream service has issues.";
           errorInfo.suggestion = DEFAULT_RSSHUB_INSTANCE.includes("rsshub.app")
-            ? "公共实例 rsshub.app 当前负载较高。建议：1) 稍后重试 2) 自部署 RSSHub 实例（5分钟 Docker 部署）"
-            : "这通常是临时性问题，请稍后重试。如果问题持续，可能是上游网站暂时无法访问。";
+            ? "Public instance rsshub.app is currently under high load. Suggestions: 1) Retry later 2) Self-deploy RSSHub instance (5-minute Docker deployment)"
+            : "This is usually a temporary issue. Please retry later. If the problem persists, the upstream website may be temporarily inaccessible.";
           errorInfo.possibleReasons = [
-            "RSSHub 服务器负载过高",
-            "上游网站响应超时或出错",
-            "网络连接问题",
+            "RSSHub server overloaded",
+            "Upstream website timeout or error",
+            "Network connection issues",
           ];
         } else if (response.status === 500) {
-          errorInfo.message = "RSSHub 服务器内部错误。";
-          errorInfo.suggestion = "路由可能存在 bug，或者所需的参数不正确。";
+          errorInfo.message = "RSSHub server internal error.";
+          errorInfo.suggestion =
+            "The route may have a bug, or the required parameters are incorrect.";
         }
 
-        // 尝试包含响应数据（如果是文本）
+        // Try to include response data (if it's text)
         if (
           typeof response.data === "string" &&
           response.data.length < 1000
@@ -273,7 +274,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
-      // 成功响应
+      // Success response
       return {
         content: [
           {
@@ -293,33 +294,33 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           },
         ],
       };
-    } else if (name === "search_rsshub_routes") {
+    } else if (name === "search_routes") {
       if (!args) {
-        throw new Error("缺少必需的参数");
+        throw new Error("Missing required parameters");
       }
       const query = args.query as string;
 
-      // 获取所有路由
+      // Fetch all routes
       const allRoutes = await fetchAllRoutes();
 
-      // 搜索路由
+      // Search routes
       const matchedRoutes = searchRoutes(allRoutes, query);
 
-      let output = `# RSSHub 路由搜索结果: "${query}"\n\n`;
-      output += `找到 ${matchedRoutes.length} 个匹配的路由`;
+      let output = `# RSSHub Route Search Results: "${query}"\n\n`;
+      output += `Found ${matchedRoutes.length} matching route(s)`;
       if (matchedRoutes.length >= 50) {
-        output += `（仅显示前 50 个）`;
+        output += ` (showing first 50 only)`;
       }
       output += `\n\n`;
 
       if (matchedRoutes.length === 0) {
-        output += `未找到匹配 "${query}" 的路由。\n\n`;
-        output += `## 建议\n\n`;
-        output += `- 尝试使用更通用的关键词\n`;
-        output += `- 使用英文关键词搜索\n`;
-        output += `- 访问完整路由文档：https://docs.rsshub.app/\n`;
+        output += `No routes matching "${query}" found.\n\n`;
+        output += `## Suggestions\n\n`;
+        output += `- Try using more generic keywords\n`;
+        output += `- Use English keywords for search\n`;
+        output += `- Visit complete route documentation: https://docs.rsshub.app/\n`;
       } else {
-        // 按命名空间分组显示
+        // Group by namespace
         const groupedByNamespace = matchedRoutes.reduce((acc, route) => {
           const key = route.namespaceName || route.namespace;
           if (!acc[key]) {
@@ -336,27 +337,27 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
           for (const route of routes) {
             output += `### ${route.name || route.path}\n\n`;
-            output += `- **路由**: \`${route.path}\`\n`;
+            output += `- **Route**: \`${route.path}\`\n`;
             if (route.example) {
-              output += `- **示例**: \`${route.example}\`\n`;
-              output += `- **完整 URL**: \`${DEFAULT_RSSHUB_INSTANCE}${route.example}\`\n`;
+              output += `- **Example**: \`${route.example}\`\n`;
+              output += `- **Full URL**: \`${DEFAULT_RSSHUB_INSTANCE}${route.example}\`\n`;
             }
             if (route.description) {
-              output += `- **描述**: ${route.description.substring(0, 200)}${route.description.length > 200 ? "..." : ""}\n`;
+              output += `- **Description**: ${route.description.substring(0, 200)}${route.description.length > 200 ? "..." : ""}\n`;
             }
             if (route.categories.length > 0) {
-              output += `- **分类**: ${route.categories.join(", ")}\n`;
+              output += `- **Categories**: ${route.categories.join(", ")}\n`;
             }
             if (route.url) {
-              output += `- **网站**: ${route.url}\n`;
+              output += `- **Website**: ${route.url}\n`;
             }
             if (route.maintainers.length > 0) {
-              output += `- **维护者**: ${route.maintainers.join(", ")}\n`;
+              output += `- **Maintainers**: ${route.maintainers.join(", ")}\n`;
             }
 
-            // 显示参数说明
+            // Show parameter descriptions
             if (route.parameters && Object.keys(route.parameters).length > 0) {
-              output += `- **参数**:\n`;
+              output += `- **Parameters**:\n`;
               for (const [param, desc] of Object.entries(route.parameters)) {
                 output += `  - \`${param}\`: ${desc}\n`;
               }
@@ -367,10 +368,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         }
 
         output += `\n---\n\n`;
-        output += `💡 **提示**: 使用 \`get_rsshub_feed\` 工具获取具体的订阅内容\n\n`;
+        output += `💡 **Tip**: Use the \`get_feed\` tool to fetch specific feed content\n\n`;
       }
 
-      output += `📚 更多信息请访问 [RSSHub 文档](https://docs.rsshub.app/)\n`;
+      output += `📚 For more information, visit [RSSHub Documentation](https://docs.rsshub.app/)\n`;
 
       return {
         content: [
@@ -382,23 +383,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       };
     }
 
-    throw new Error(`未知工具: ${name}`);
+    throw new Error(`Unknown tool: ${name}`);
   } catch (error) {
-    console.error(`[RSSHub MCP] 错误:`, error);
+    console.error(`[RSSHub MCP] Error:`, error);
 
-    // 处理 axios 错误（用于 search_rsshub_routes 的 API 调用）
+    // Handle axios errors (for search_routes API calls)
     if (axios.isAxiosError(error)) {
       const errorInfo: any = {
-        error: "API 请求失败",
+        error: "API request failed",
         message: error.message,
       };
 
       if (error.code === "ECONNABORTED" || error.message.includes("timeout")) {
-        errorInfo.suggestion = "网络超时，请检查网络连接或稍后重试";
+        errorInfo.suggestion =
+          "Network timeout, please check network connection or try again later";
       } else if (error.response) {
         errorInfo.status = error.response.status;
         errorInfo.suggestion =
-          "无法获取路由列表，这不影响本地 RSSHub 功能的使用";
+          "Failed to fetch route list, this does not affect RSSHub functionality";
       }
 
       return {
@@ -412,29 +414,30 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       };
     }
 
-    // 处理 RSSHub 本地错误
+    // Handle RSSHub errors
     const errorInfo: any = {
-      error: "RSSHub 处理失败",
+      error: "RSSHub processing failed",
       message: error instanceof Error ? error.message : String(error),
       type: error instanceof Error ? error.constructor.name : "Unknown",
     };
 
-    // 尝试提供有用的建议
+    // Try to provide helpful suggestions
     const errorMsg = errorInfo.message.toLowerCase();
     if (errorMsg.includes("not found") || errorMsg.includes("404")) {
       errorInfo.suggestion =
-        "路由不存在。请使用 search_rsshub_routes 工具搜索正确的路由。";
+        "Route not found. Please use the search_routes tool to search for the correct route.";
     } else if (errorMsg.includes("timeout") || errorMsg.includes("timed out")) {
       errorInfo.suggestion =
-        "上游网站响应超时。建议稍后重试，或检查目标网站是否可访问。";
+        "Upstream website timeout. Please retry later or check if the target website is accessible.";
     } else if (
       errorMsg.includes("network") ||
       errorMsg.includes("enotfound")
     ) {
-      errorInfo.suggestion = "网络连接问题。请检查网络连接和防火墙设置。";
+      errorInfo.suggestion =
+        "Network connection issue. Please check network connection and firewall settings.";
     } else {
       errorInfo.suggestion =
-        "路由处理出错。可能是路由参数不正确，或上游网站结构发生变化。";
+        "Route processing error. The route parameters may be incorrect, or the upstream website structure has changed.";
     }
 
     return {
@@ -449,14 +452,14 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
-// 启动服务器
+// Start server
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("RSSHub MCP Server 已启动");
+  console.error("RSSHub MCP Server started");
 }
 
 main().catch((error) => {
-  console.error("服务器启动失败:", error);
+  console.error("Failed to start server:", error);
   process.exit(1);
 });

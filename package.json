@@ -5,21 +5,37 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "rsshub-mcp": "./dist/index.js"
+    "rsshub-mcp": "dist/index.js"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "README_EN.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
     "prepare": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/panxiande/RSSHub-MCP.git"
+  },
+  "homepage": "https://github.com/panxiande/RSSHub-MCP#readme",
+  "bugs": {
+    "url": "https://github.com/panxiande/RSSHub-MCP/issues"
   },
   "keywords": [
     "mcp",
     "rsshub",
     "rss",
     "feed",
-    "model-context-protocol"
+    "model-context-protocol",
+    "claude",
+    "ai"
   ],
-  "author": "",
+  "author": "panxiande",
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^0.6.0",
